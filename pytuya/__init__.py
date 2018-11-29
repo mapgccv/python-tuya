@@ -334,6 +334,8 @@ class Device(XenonDevice):
         log.debug('set_timer received data=%r', data)
         return data
 
+  
+
 class OutletDevice(Device):
     def __init__(self, dev_id, address, local_key=None):
         dev_type = 'device'
@@ -534,3 +536,139 @@ class BulbDevice(Device):
                 state[self.DPS_2_STATE[key]]=status[self.DPS][key]
 
         return state
+
+
+class CombinedDevice(Device):
+    DPS_INDEX_ON         = '1'
+
+    DPS_INDEX_LED_ON     = '27'
+    DPS_INDEX_MODE       = '28'
+    DPS_INDEX_BRIGHTNESS = '29'
+    DPS_INDEX_COLOURTEMP = '30'
+    DPS_INDEX_COLOUR     = '31'
+
+    DPS             = 'dps'
+    DPS_MODE_COLOUR = 'colour'
+    DPS_MODE_WHITE  = 'white'
+    
+    DPS_2_STATE = {
+                '1':'is_on',
+                '2':'mode',
+                '3':'brightness',
+                '4':'colourtemp',
+                '5':'colour',
+                }
+
+    def __init__(self, dev_id, address, local_key=None):
+        dev_type = 'device'
+        super(CombinedDevice, self).__init__(dev_id, address, local_key, dev_type)
+
+    def set_colour(self, r, g, b):
+        """
+        Set colour of an rgb bulb.
+
+        Args:
+            r(int): Value for the colour red as int from 0-255.
+            g(int): Value for the colour green as int from 0-255.
+            b(int): Value for the colour blue as int from 0-255.
+        """
+        if not 0 <= r <= 255:
+            raise ValueError("The value for red needs to be between 0 and 255.")
+        if not 0 <= g <= 255:
+            raise ValueError("The value for green needs to be between 0 and 255.")
+        if not 0 <= b <= 255:
+            raise ValueError("The value for blue needs to be between 0 and 255.")
+
+        print(BulbDevice)
+        hexvalue = BulbDevice._rgb_to_hexvalue(r, g, b)
+
+        payload = self.generate_payload(SET, {
+            self.DPS_INDEX_MODE: self.DPS_MODE_COLOUR,
+            self.DPS_INDEX_COLOUR: hexvalue})
+        data = self._send_receive(payload)
+        return data
+
+    def set_white(self, brightness, colourtemp):
+        """
+        Set white coloured theme of an rgb bulb.
+
+        Args:
+            brightness(int): Value for the brightness (25-255).
+            colourtemp(int): Value for the colour temperature (0-255).
+        """
+        if not 25 <= brightness <= 255:
+            raise ValueError("The brightness needs to be between 25 and 255.")
+        if not 0 <= colourtemp <= 255:
+            raise ValueError("The colour temperature needs to be between 0 and 255.")
+
+        payload = self.generate_payload(SET, {
+            self.DPS_INDEX_MODE: self.DPS_MODE_WHITE,
+            self.DPS_INDEX_BRIGHTNESS: brightness,
+            self.DPS_INDEX_COLOURTEMP: colourtemp})
+
+        data = self._send_receive(payload)
+        return data
+
+    def set_brightness(self, brightness):
+        """
+        Set the brightness value of an rgb bulb.
+
+        Args:
+            brightness(int): Value for the brightness (25-255).
+        """
+        if not 25 <= brightness <= 255:
+            raise ValueError("The brightness needs to be between 25 and 255.")
+
+        payload = self.generate_payload(SET, {self.DPS_INDEX_BRIGHTNESS: brightness})
+        data = self._send_receive(payload)
+        return data
+
+    def set_colourtemp(self, colourtemp):
+        """
+        Set the colour temperature of an rgb bulb.
+
+        Args:
+            colourtemp(int): Value for the colour temperature (0-255).
+        """
+        if not 0 <= colourtemp <= 255:
+            raise ValueError("The colour temperature needs to be between 0 and 255.")
+
+        payload = self.generate_payload(SET, {self.DPS_INDEX_COLOURTEMP: colourtemp})
+        data = self._send_receive(payload)
+        return data
+
+    def brightness(self):
+        """Return brightness value"""
+        return self.status()[self.DPS][self.DPS_INDEX_BRIGHTNESS]
+
+    def colourtemp(self):
+        """Return colour temperature"""
+        return self.status()[self.DPS][self.DPS_INDEX_COLOURTEMP]
+
+    def colour_rgb(self):
+        """Return colour as RGB value"""
+        hexvalue = self.status()[self.DPS][self.DPS_INDEX_COLOUR]
+        return BulbDevice._hexvalue_to_rgb(hexvalue)
+
+    def colour_hsv(self):
+        """Return colour as HSV value"""
+        hexvalue = self.status()[self.DPS][self.DPS_INDEX_COLOUR]
+        return BulbDevice._hexvalue_to_hsv(hexvalue)
+
+    def state(self):
+        status = self.status()
+        state = {}
+
+        for key in status[self.DPS].keys():
+            if(int(key)<=5):
+                state[self.DPS_2_STATE[key]]=status[self.DPS][key]
+
+        return state
+    def turn_on_led(self):
+        """Turn the LED on"""
+        self.set_status(True, self.DPS_INDEX_LED_ON)
+
+    def turn_off_led(self):
+        """Turn the LED off"""
+        self.set_status(False, self.DPS_INDEX_LED_ON)
+
